@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>AstroSim Visualizer</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Kite+One" rel="stylesheet">
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #000;
+            color: #fff;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        .dg {
+            width: 100% !important;
+            font: 9pt monospace !important;
+        }
+
+        li .title {
+            text-align: center;
+        }
+
+        #panel {
+          height: 100%; /* Full-height: remove this if you want "auto" height */
+          width: 25%; /* Set the width of the sidebar */
+          position: absolute; /* Fixed Sidebar (stay in place on scroll) */
+          z-index: 1; /* Stay on top */
+          top: 0; /* Stay at the top */
+          left: 0;
+          background-color: #1C1C1C; /* Black */
+        }
+
+        #controls {
+            padding: 10px;
+        }
+
+        #viewcanvas {
+            position: absolute;
+            height: 100%;
+            width: 75%;
+            top: 0;
+            right: 0;
+        }
+
+        .close-button {
+            display: none;
+        }
+
+        h1 {
+            text-align: center;
+            font-family: 'Kite One', sans-serif;
+            font-size: 2em;
+            font-weight: normal;
+        }
+
+        hr {
+            margin: 20px;
+        }
+
+        #footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            text-align: center;
+            font-size: 0.7em;
+            width: 100%;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        #htu>a {
+            font-size: 0.8em;
+            text-decoration: none;
+            color: #2fa1d6;
+        }
+
+        #loading-image-holder {
+            text-align: center;
+        }
+
+        #loading-image {
+            margin-top: 40px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="panel">
+        <div id="controls">
+            <h1>Astro Sim Visualizer</h1>
+            <hr>
+            <input id="fileSelector" type="file" style="display:none;" />
+            <div id="guibox"></div>
+            <div id="loading-image-holder">
+                <img src="loading.svg" alt="loading" id="loading-image">
+            </div>
+
+            <p id="footer">
+                Made by Ian Holst<br>
+                <span id="htu"><a href="https://hack-the-universe.github.io/">Hack the Universe 2019</a></span>
+            </p>
+        </div>
+    </div>
+    <canvas id="viewcanvas"></canvas>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/Volume.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/NRRDLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/shaders/VolumeShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/WebGL.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/libs/dat.gui.min.js"></script>
+
+    <script>
+        if (WEBGL.isWebGL2Available() === false) {
+            document.body.appendChild(WEBGL.getWebGL2ErrorMessage());
+        }
+        var canvas,
+            renderer,
+            scene,
+            camera,
+            controls,
+            material,
+            texture,
+            cmtextures,
+            config,
+            volume,
+            loadingImage,
+            N;
+
+        // Colormap textures
+        cmtextures = {
+            viridis: new THREE.TextureLoader().load('cmaps/viridis.png'),
+            inferno: new THREE.TextureLoader().load('cmaps/inferno.png'),
+            magma: new THREE.TextureLoader().load('cmaps/magma.png'),
+            plasma: new THREE.TextureLoader().load('cmaps/plasma.png'),
+            cividis: new THREE.TextureLoader().load('cmaps/cividis.png'),
+            bone: new THREE.TextureLoader().load('cmaps/bone.png'),
+            hot: new THREE.TextureLoader().load('cmaps/hot.png'),
+            reds: new THREE.TextureLoader().load('cmaps/reds.png'),
+            oranges: new THREE.TextureLoader().load('cmaps/oranges.png'),
+            greens: new THREE.TextureLoader().load('cmaps/greens.png'),
+            blues: new THREE.TextureLoader().load('cmaps/blues.png'),
+            purples: new THREE.TextureLoader().load('cmaps/purples.png'),
+            grays: new THREE.TextureLoader().load('cmaps/grays.png'),
+            RdBu: new THREE.TextureLoader().load('cmaps/RdBu.png'),
+            PiYG: new THREE.TextureLoader().load('cmaps/PiYG.png'),
+            PRGn: new THREE.TextureLoader().load('cmaps/PRGn.png'),
+            BrBG: new THREE.TextureLoader().load('cmaps/BrBG.png'),
+            coolwarm: new THREE.TextureLoader().load('cmaps/coolwarm.png'),
+            jet: new THREE.TextureLoader().load('cmaps/jet.png'),
+            spectral: new THREE.TextureLoader().load('cmaps/spectral.png')
+        };
+
+        var loadingImage = document.getElementById('loading-image');
+        loadingImage.hidden = true;
+
+        init();
+
+
+
+        function init() {
+            config = {
+                selectfile: selectFile,
+                filename: "",
+                file: null,
+                format: "Float32",
+                Nx: 0,
+                Ny: 0,
+                Nz: 0,
+                load: loadFile,
+                cmapmin: 5,
+                cmapmax: 15,
+                colormap: "spectral",
+                interpolation: THREE.NearestFilter,
+                quality: 1,
+                autoscale: true,
+            };
+
+            var gui = new dat.GUI({ autoPlace: false });
+            var loadGui = gui.addFolder('Load');
+            loadGui.open();
+            loadGui.add(config, 'selectfile').name("Select File");
+            loadGui.add(config, 'filename', "").name("Filename").listen();
+            loadGui.add(config, 'format', ["Float32", "Float64"]).name("Format");
+            loadGui.add(config, 'Nx', 0, 1000, 1).name("x size");
+            loadGui.add(config, 'Ny', 0, 1000, 1).name("y size");
+            loadGui.add(config, 'Nz', 0, 1000, 1).name("z size");
+            loadGui.add(config, 'autoscale').name("Scale Colormap");
+            loadGui.add(config, 'load').name("Load");
+
+            var displayGui = gui.addFolder('Display');
+            displayGui.open();
+            displayGui.add(config, 'cmapmin', 0, 100, 0.01).name("Colormap Min").onChange(updateParams).listen();
+            displayGui.add(config, 'cmapmax', 0, 100, 0.01).name("Colormap Max").onChange(updateParams).listen();
+            displayGui.add(config, 'colormap', [
+                "viridis", "inferno", "magma", "plasma", "cividis",
+                "bone", "hot", "reds", "oranges", "greens", "blues", "purples",
+                "grays", "RdBu", "PiYG", "PRGn", "BrBG", "coolwarm", "jet", "spectral"
+            ]).name("Colormap").onChange(updateParams);
+            displayGui.add(config, 'interpolation', {"linear": THREE.LinearFilter, "nearest": THREE.NearestFilter}).name("Interpolation").onChange(updateParams);
+            displayGui.add(config, 'quality', 0, window.devicePixelRatio, 0.1).name("View Quality").onChange(updateParams);
+
+            var controlpanel = document.getElementById('guibox');
+            controlpanel.appendChild(gui.domElement);
+        }
+
+        function selectFile() {
+            var fileSelector = document.getElementById('fileSelector');
+            fileSelector.click();
+            fileSelector.addEventListener('change', function() {
+                var file = fileSelector.files[0];
+                if (!file) return;
+                config.filename = file.name;
+                config.file = file;
+            }, false);
+        }
+
+        function loadFile() {
+            if (config.file) {
+                console.log("Loading", config.file.name);
+                // Read in data
+                var reader = new FileReader();
+                reader.onload = function() {
+                    var fileArrayBuffer = reader.result;
+                    volume = {};
+                    switch (config.format) {
+                        case "Float32":
+                            volume.data = new Float32Array(fileArrayBuffer);
+                            break;
+                        case "Float64":
+                            volume.data = new Float32Array(new Float64Array(fileArrayBuffer));
+                            break;
+                    }
+                    if (config.Nx == 0 && config.Ny == 0 && config.Nz == 0) {
+                        N = Math.round(Math.cbrt(volume.data.length));
+                        volume.Nx = volume.Ny = volume.Nz = N;
+                    } else {
+                        volume.Nx = config.Nx;
+                        volume.Ny = config.Ny;
+                        volume.Nz = config.Nz;
+                        N = Math.max(volume.Nx, volume.Ny, volume.Nz);
+                    }
+
+                    if (config.autoscale) {
+                        var minvalue = arrayMin(volume.data);
+                        var maxvalue = arrayMax(volume.data);
+                        config.cmapmin = minvalue;
+                        config.cmapmax = maxvalue;
+                    }
+
+                    // Loading done, setup model in view
+                    setupView();
+                };
+                reader.readAsArrayBuffer(config.file);
+            }
+        }
+
+        function arrayMin(arr) {
+            var len = arr.length,
+                min = Infinity;
+            while (len--) {
+                if (arr[len] < min) {
+                    min = arr[len];
+                }
+            }
+            return min;
+        }
+
+        function arrayMax(arr) {
+            var len = arr.length,
+                max = -Infinity;
+            while (len--) {
+                if (arr[len] > max) {
+                    max = arr[len];
+                }
+            }
+            return max;
+        }
+
+        function setupView() {
+            loadingImage.hidden = false;
+            scene = new THREE.Scene();
+            // Create renderer
+            canvas = document.getElementById('viewcanvas');
+            var context = canvas.getContext('webgl2');
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                context: context
+            });
+            renderer.setPixelRatio(config.quality);
+
+            // Create camera (The volume renderer does not work very well with perspective yet)
+            camera = new THREE.OrthographicCamera();
+            onWindowResize();
+            camera.position.set(volume.Nx, volume.Ny, volume.Nz);
+            camera.up.set(0, 0, 1); // In our data, z is up
+            camera.lookAt(new THREE.Vector3(volume.Nx/2, volume.Ny/2, volume.Nz/2));
+            // scene.add( new THREE.AxesHelper( 100 ) );
+
+            // Create controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.addEventListener('change', render);
+            controls.target.set(volume.Nx/2, volume.Ny/2, volume.Nz/2);
+            controls.minZoom = 0.1;
+            controls.maxZoom = 4;
+            controls.enablePan = false;
+            controls.enableKeys = false;
+            controls.update();
+
+            // Texture to hold the volume. We have scalars, so we put our data in the red channel.
+            // THREEJS will select R32F (33326) based on the RedFormat and FloatType.
+            // Also see https://www.khronos.org/registry/webgl/specs/latest/2.0/#TEXTURE_TYPES_FORMATS_FROM_DOM_ELEMENTS_TABLE
+            // TODO: look the dtype up in the volume metadata
+            texture = new THREE.DataTexture3D(volume.data, volume.Nx, volume.Ny, volume.Nz);
+            texture.format = THREE.RedFormat;
+            texture.type = THREE.FloatType;
+            texture.minFilter = texture.magFilter = config.interpolation;
+            texture.unpackAlignment = 1;
+            texture.needsUpdate = true;
+
+            // Material
+            var shader = THREE.VolumeRenderShader1;
+            var uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+            uniforms["u_data"].value = texture;
+            uniforms["u_size"].value.set(volume.Nx, volume.Ny, volume.Nz);
+            uniforms["u_clim"].value.set(config.cmapmin, config.cmapmax);
+            uniforms["u_renderstyle"].value = 0; // 0: MIP, 1: ISO
+            uniforms["u_cmdata"].value = cmtextures[config.colormap];
+            material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: shader.vertexShader,
+                fragmentShader: shader.fragmentShader,
+                side: THREE.BackSide // The volume shader uses the backface as its "reference point"
+            });
+
+            // Mesh
+            var geometry = new THREE.BoxGeometry(volume.Nx, volume.Ny, volume.Nz);
+            geometry.translate(volume.Nx / 2, volume.Ny / 2, volume.Nz / 2);
+            var mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            // Bounding box
+            var boundingBoxGeometry = new THREE.EdgesGeometry(geometry);
+            var boundingBoxMaterial = new THREE.LineBasicMaterial({ color: "white" });
+            var boundingBoxMesh = new THREE.LineSegments(boundingBoxGeometry, boundingBoxMaterial);
+            scene.add(boundingBoxMesh);
+
+            render();
+            loadingImage.hidden = true;
+
+            window.addEventListener('resize', onWindowResize, false);
+
+        }
+
+        function updateParams() {
+            if (scene) {
+                material.uniforms["u_clim"].value.set(config.cmapmin, config.cmapmax);
+                material.uniforms["u_cmdata"].value = cmtextures[config.colormap];
+                renderer.setPixelRatio(config.quality);
+                render();
+            }
+        }
+
+        function onWindowResize() {
+            var aspect = canvas.clientWidth / canvas.clientHeight;
+            var frustumHeight = 2*N; // frustum height
+            var frustumWidth = 2*N * aspect; // frustum height
+            var frustumDepth = N*10;
+            camera.left   = -frustumWidth / 2
+            camera.right  =  frustumWidth / 2
+            camera.bottom = -frustumHeight / 2
+            camera.top    =  frustumHeight / 2
+            camera.near   =  0
+            camera.far    =  frustumDepth
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+            render();
+        }
+
+        function render() {
+            renderer.render(scene, camera);
+        }
+    </script>
+
+
+</body>
+
+</html>
