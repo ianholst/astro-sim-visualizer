@@ -1,4 +1,4 @@
 # Astro Simulation Visualizer
 
-### [Run](https://gitcdn.xyz/repo/ianholst/astro-sim-visualizer/master/index.html)
+### [Run](https://raw.githack.com/ianholst/astro-sim-visualizer/master/index.html)
 
