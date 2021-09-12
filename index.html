@@ -132,7 +132,8 @@
             config,
             volume,
             loadingImage,
-            N;
+            N,
+            cmapmincontrol, cmapmaxcontrol;
 
         // Colormap textures
         cmtextures = {
@@ -175,20 +176,20 @@
                 Ny: 0,
                 Nz: 0,
                 load: loadFile,
-                cmapmin: 5,
-                cmapmax: 15,
+                cmapmin: 0,
+                cmapmax: 1,
                 colormap: "spectral",
                 interpolation: THREE.NearestFilter,
                 quality: 1,
                 autoscale: true,
             };
 
-            var gui = new dat.GUI({ autoPlace: false });
+            gui = new dat.GUI({ autoPlace: false });
             var loadGui = gui.addFolder('Load');
             loadGui.open();
             loadGui.add(config, 'selectfile').name("Select File");
             loadGui.add(config, 'filename', "").name("Filename").listen();
-            loadGui.add(config, 'format', ["Float32", "Float64"]).name("Format");
+            loadGui.add(config, 'format', ["Float32", "Float64", "UInt8"]).name("Format");
             loadGui.add(config, 'Nx', 0, 1000, 1).name("x size");
             loadGui.add(config, 'Ny', 0, 1000, 1).name("y size");
             loadGui.add(config, 'Nz', 0, 1000, 1).name("z size");
@@ -197,8 +198,8 @@
 
             var displayGui = gui.addFolder('Display');
             displayGui.open();
-            displayGui.add(config, 'cmapmin', 0, 100, 0.01).name("Colormap Min").onChange(updateParams).listen();
-            displayGui.add(config, 'cmapmax', 0, 100, 0.01).name("Colormap Max").onChange(updateParams).listen();
+            cmapmincontrol = displayGui.add(config, 'cmapmin', 0, 1, 0.01).name("Colormap Min").onChange(updateParams).listen();
+            cmapmaxcontrol = displayGui.add(config, 'cmapmax', 0, 1, 0.01).name("Colormap Max").onChange(updateParams).listen();
             displayGui.add(config, 'colormap', [
                 "viridis", "inferno", "magma", "plasma", "cividis",
                 "bone", "hot", "reds", "oranges", "greens", "blues", "purples",
@@ -237,6 +238,8 @@
                         case "Float64":
                             volume.data = new Float32Array(new Float64Array(fileArrayBuffer));
                             break;
+                        case "UInt8":
+                            volume.data = new Float32Array(new Uint8Array(fileArrayBuffer));
                     }
                     if (config.Nx == 0 && config.Ny == 0 && config.Nz == 0) {
                         N = Math.round(Math.cbrt(volume.data.length));
@@ -253,6 +256,10 @@
                         var maxvalue = arrayMax(volume.data);
                         config.cmapmin = minvalue;
                         config.cmapmax = maxvalue;
+                        cmapmincontrol.min(minvalue);
+                        cmapmincontrol.max(maxvalue);
+                        cmapmaxcontrol.min(minvalue);
+                        cmapmaxcontrol.max(maxvalue);
                     }
 
                     // Loading done, setup model in view
@@ -285,6 +292,7 @@
         }
 
         function setupView() {
+            delete scene, canvas, renderer, context, controls, material, texture, shader, uniforms, geometry, mesh
             loadingImage.hidden = false;
             scene = new THREE.Scene();
             // Create renderer
